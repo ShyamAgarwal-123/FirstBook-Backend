@@ -344,6 +344,39 @@ const userClickedChannelProfile = asyncHandler(async (req,res)=>{
     .status(200)
     .json(new ApiResponse(200,channel[0],"Channel is Successfully Fetched"))
 })
+//controller for updating user profile
+const updateAccountDetails = asyncHandler(async(req, res) => {
+    const {fullName, email} = req.body
+
+    if (!fullName || !email) {
+        throw new ApiError(400, "fields are empty")
+    }
+
+    const existingUser =  await User.countDocuments({email})
+    if (existingUser) {
+        throw new ApiError(409,"Email already exists") 
+    }
+    
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set: {
+                fullName,
+                email
+            }
+        },
+        {new: true}
+        
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(new ApiResponse(
+        200, 
+        user, 
+        "Account details updated successfully"
+    ))
+});
 
 export {
     registerUser,
@@ -353,5 +386,6 @@ export {
     userPasswordUpdate,
     getCurrentUser,
     userAvatarUpdate,
-    userClickedChannelProfile
+    userClickedChannelProfile,
+    updateAccountDetails
 }

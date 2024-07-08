@@ -7,7 +7,8 @@ import {
     userPasswordUpdate,
     getCurrentUser,
     userAvatarUpdate,
-    userClickedChannelProfile
+    userClickedChannelProfile,
+    updateAccountDetails
 } from "../controllers/user.controllers.js";
 import {upload} from "../middlewares/multer.middlewares.js"
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
@@ -54,6 +55,9 @@ userRouter.route("/update-avatar").patch(verifyJWT,
 )
 //route for getting clicked user channel
 userRouter.route("/c/:username").get(verifyJWT,userClickedChannelProfile)
+
+// route for updating userProfile
+userRouter.route("/update-account").patch(verifyJWT,updateAccountDetails)
 
 
 export default userRouter;
