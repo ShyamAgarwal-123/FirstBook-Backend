@@ -49,7 +49,7 @@ const userSchema = new mongoose.Schema({
         type: String
     }
 },{timestamps: true});
-// hook before a save 
+// hook before a save (before saving a user to db it encrypts the password and then pass the next command to save function. 
 userSchema.pre("save", async function(next){
     if(!this.isModified("password")) return next();
 
