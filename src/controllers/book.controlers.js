@@ -178,12 +178,43 @@ const getBookById = asyncHandler(async (req, res) => {
         new ApiResponse(200,foundedBook,"Book successfully fetched")
     )
 })
-
+// controllers for getting all books based on search query
 const getAllBooks = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
-    //TODO: get all books based on query, sort, pagination
-})
+    const { page = 1, limit = 5, query, sortBy, sortType, userId} = req.query
 
+    // filter object
+    const filter = {};
+    if (query) {
+        filter.$or = [
+            { title: { $regex: query, $options: 'i' } },
+            { genre: { $regex: query, $options: 'i' } }
+        ];
+    }
+    // sort object
+    const sort = {};
+    if (sortBy) {
+        sort[sortBy] = sortType === 'asc' ? 1 : -1;
+    }
+    //pagination
+    const skip = (page-1)*limit;
+
+    try {
+        const books = await Book.find(filter).sort(sort).skip(skip).limit(parseInt(limit,10));
+        return res
+        .status(200)
+        .json( new ApiResponse(
+            200,
+            {
+                books:books,
+                totalBooks : books.length
+            },
+            "Books fetched Successfully"))
+
+    } catch (error) {
+        throw new ApiError(500,error)
+    }
+})
+// controller for saving favourite book
 const saveFavouriteBook = asyncHandler(async(req,res)=>{
     const { bookId } = req.params
     const userId = new mongoose.Types.ObjectId(`${req.user?._id}`)
