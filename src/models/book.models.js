@@ -13,6 +13,10 @@ const bookSchema = new mongoose.Schema({
         type:String,//from cloudinary
         required:true
     },
+    coverImage_id:{
+        type: String,
+        required: true
+    },
     genre:{
         type:String,
         required:true,

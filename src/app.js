@@ -25,10 +25,22 @@ app.use(cookieParser())//to parse cookies attached to the client request object.
 
 //routes import
 import userRouter from "./routes/user.routes.js";
-
+import subscriptionRouter from "./routes/subscription.routes.js"
+import likeRouter from "./routes/like.routes.js";
+import dislikeRouter from "./routes/dislike.routes.js";
+import reviewRouter from "./routes/review.routes.js";
+import bookSub from "./routes/bookSubscription.routes.js";
+import bookRouter from "./routes/book.routes.js";
 
 //routes declaration
 app.use("/api/v1/users",userRouter)
+app.use("/api/v1/subscriptions", subscriptionRouter)
+app.use("/api/v1/likes",likeRouter)
+app.use("/api/v1/dislikes",dislikeRouter)
+app.use("/api/v1/reviews",reviewRouter)
+app.use("/api/v1/book-subscriptions",bookSub)
+app.use("/api/v1/books",bookRouter)
+
 //http://localhost:8000/api/v1/users then calls the userRouter
 
 export {app};

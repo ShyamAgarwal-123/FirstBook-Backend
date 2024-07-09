@@ -352,7 +352,7 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
         throw new ApiError(400, "fields are empty")
     }
 
-    const existingUser =  await User.countDocuments({email})
+    const existingUser =  await User.countDocuments({email: email})
     if (existingUser) {
         throw new ApiError(409,"Email already exists") 
     }
