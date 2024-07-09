@@ -378,6 +378,104 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
     ))
 });
 
+//controller for getting all favouriteBooks
+const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
+    const user = await User.aggregate([
+        {
+            $match:{
+                _id : new mongoose.Types.ObjectId(req.user?._id)
+            }
+        },
+        {
+            $lookup:{
+                from: "books",
+                localField: "favouriteBooks",
+                foreignField: "_id",
+                as: "favouriteBooks",
+                pipeline:[
+                    {
+                        $lookup:{
+                            from : "users",
+                            localField: "author",
+                            foreignField:"_id",
+                            as: "author",
+                            pipeline:[
+                                {
+                                    $project:{
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1
+                                    }
+                                }
+                            ]
+                        }
+                        
+                    },
+                    {
+                        $lookup:{
+                            from:"reviews",
+                            localField:"reviews",
+                            foreignField:"_id",
+                            as:"reviews",
+                            pipeline:[
+                                {
+                                    $project:{
+                                        rating:1
+                                    }
+                                },
+                                
+                            ]
+
+                        }
+                    },
+                    {
+                        $unwind :"$reviews"
+                    },
+                    {
+                        $group:{
+                            _id:null,
+                            averageRating:{
+                                $avg: "$reviews.rating"
+                            }
+                        }
+                    },
+                    {
+                        $addFields:{
+                            author:{
+                                $first:"$author"
+                            },
+                            totalReviews:{
+                                $size: "$reviews"
+                            },
+                        }
+                    },
+                    {
+                        $project:{
+                            author: 1,
+                            totalReviews:1,
+                            title:1,
+                            coverimage:1,
+                            price:1,
+                            averageRating:1
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+    if (!user.length) {
+        throw new ApiError(500,"Somthig went wrong while getting Favourite Books")
+    }
+    const allFavouriteBooks = user.favouriteBooks
+    if(!allFavouriteBooks.length){
+        throw new ApiError(500,"Somthig went wrong while getting Favourite Books")
+    }
+    return res.status(200)
+    .json(
+        new ApiResponse(200,allFavouriteBooks,"Favourite Books ")
+    )
+})   
+
 export {
     registerUser,
     loginUser,
@@ -387,5 +485,6 @@ export {
     getCurrentUser,
     userAvatarUpdate,
     userClickedChannelProfile,
-    updateAccountDetails
+    updateAccountDetails,
+    getAllFavouriteBooks
 }

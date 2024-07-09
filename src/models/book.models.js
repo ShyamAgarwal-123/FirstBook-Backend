@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 
 const bookSchema = new mongoose.Schema({
@@ -6,16 +7,11 @@ const bookSchema = new mongoose.Schema({
         type: String,
         required: [true,"title is Required"],
         index: true,
-        unique:true,
         trim: true,
     },
     coverImage:{
         type:String,//from cloudinary
         required:true
-    },
-    coverImage_id:{
-        type: String,
-        required: true
     },
     genre:{
         type:String,
@@ -43,6 +39,7 @@ const bookSchema = new mongoose.Schema({
 
 },{timestamps:true})
 
+bookSchema.plugin(mongooseAggregatePaginate)
 
 
 export const Book = mongoose.model("Book",bookSchema);

@@ -24,6 +24,12 @@ const userSchema = new mongoose.Schema({
         index: true,
         trim: true,
     },
+    favouriteBooks:[
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Book"
+        }
+    ],
     avatar:{
         type: String, // cloudinary url
         required:true,
@@ -35,12 +41,6 @@ const userSchema = new mongoose.Schema({
     coverImage: {
         type: String, // cloudinary url
     },
-    // watchHistory: [
-    //     {
-    //         type: mongoose.Schema.Types.ObjectId,
-    //         ref: "Video"
-    //     }
-    // ],
     password: {
         type: String,
         required: [true, 'Password is required']
