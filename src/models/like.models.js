@@ -9,6 +9,10 @@ const likeSchema = new mongoose.Schema({
     review:{
         type:mongoose.Schema.Types.ObjectId,
         ref:"Review"
+    },
+    book:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"Book"
     }
 },{timestamps:true})
 

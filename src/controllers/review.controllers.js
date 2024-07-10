@@ -3,6 +3,9 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { Review } from "../models/review.models.js";
 import mongoose from "mongoose";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { Like } from "../models/like.models.js";
+import { Dislike } from "../models/dislike.models.js";
+import {Book} from "../models/book.models.js";
 
 // controller for submiting a review
 const submitReview = asyncHandler(async (req,res)=>{
@@ -43,8 +46,15 @@ const deleteReviewById = asyncHandler(async (req,res)=>{
     if(owner?._id !== new mongoose.Types.ObjectId(req.user?._id)){
         throw new ApiError(401,"Unauthorised Request")
     }
-    const deletedReview = await Review.findByIdAndDelete(reviewId);
-    if (!deletedReview) {
+    const updatedBook = await Book.updateMany({reviews:reviewId},{
+        $pull:{
+            reviews: reviewId
+        }
+    })
+    const deleteReview = await Review.findByIdAndDelete(reviewId);
+    const deleteLikes = await Like.deleteMany(reviewId)
+    const deleteDislikes = await Dislike.deleteMany(reviewId)
+    if (!updatedBook && !deleteReview && !deleteDislikes && !deleteLikes) {
         throw new ApiError(500,"Something went wrong while deleting the review")
     }
     return res

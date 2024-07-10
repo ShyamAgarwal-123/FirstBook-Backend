@@ -269,15 +269,15 @@ const userAvatarUpdate =asyncHandler( async(req,res)=>{
         "New Avatar is updated"
     ))
 })
-// controller for getting userClickedChannelProfile
-const userClickedChannelProfile = asyncHandler(async (req,res)=>{
+// controller for getting userClickedProfile
+const userClickedProfile = asyncHandler(async (req,res)=>{
     const {username} =req.params
     const currentUser = new mongoose.Types.ObjectId(req.user?._id)
     console.log(username);
     if(!username){
         throw ApiError(400,"User is missing")
     }
-    const channel = await User.aggregate([
+    const profile = await User.aggregate([
         {
             $match:{
                 username: username.toLowerCase()
@@ -287,8 +287,8 @@ const userClickedChannelProfile = asyncHandler(async (req,res)=>{
             $lookup:{
                 from: "subscriptions",
                 localField: "_id",
-                foreignField:"channel",
-                as: "subscribers"
+                foreignField:"followedTo",
+                as: "followers"
             }
             
         },
@@ -296,28 +296,28 @@ const userClickedChannelProfile = asyncHandler(async (req,res)=>{
             $lookup:{
                 from: "subscriptions",
                 localField: "_id",
-                foreignField:"subscriber",
-                as: "subscribedTo"
+                foreignField:"follower",
+                as: "followedTo"
             }
         },
         {
             $addFields:{
-                subscriberCount : 
+                followerCount : 
                 
                   {
-                    $size: "$subscribers"
+                    $size: "$followers"
                   },
                     
                 
-                subscribedCount:
+                followedToCount:
                 {
-                  $size : "$subscribedTo"
+                  $size : "followedTo"
                     
                 },
-                isSubscribed:
+                isFollower:
                 {
                     $cond:{
-                        if:{$in :[currentUser,"$subscribers.subscriber"]},
+                        if:{$in :[currentUser,"$followers.follower"]},
                         then: true,
                         else: false
                     }
@@ -328,21 +328,21 @@ const userClickedChannelProfile = asyncHandler(async (req,res)=>{
             $project:{
                 fullname:1,
                 username:1,
-                subscriberCount:1,
-                subscribedCount:1,
+                followerCount:1,
+                followedToCount:1,
                 avatar:1,
                 coverImage:1,
-                isSubscribed:1,
+                isFollower:1,
                 email:1
             }
         }
     ])
-    if (!channel?.length) {
-        throw new ApiError(400,"channel doesnot exist")
+    if (!profile?.length) {
+        throw new ApiError(400,"profile doesnot exist")
     }
     return res
     .status(200)
-    .json(new ApiResponse(200,channel[0],"Channel is Successfully Fetched"))
+    .json(new ApiResponse(200,channel[0],"Profile is Successfully Fetched"))
 }) // !! todo add functionality for getting all the books and top five reviews of that user
 //controller for updating user profile
 const updateAccountDetails = asyncHandler(async(req, res) => {
@@ -476,7 +476,7 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
         new ApiResponse(200,allFavouriteBooks,"Favourite Books ")
     )
 })   
-
+// controller for getting all the user based on search
 const getAllUsers = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
 
@@ -520,7 +520,8 @@ export {
     userPasswordUpdate,
     getCurrentUser,
     userAvatarUpdate,
-    userClickedChannelProfile,
+    userClickedProfile,
     updateAccountDetails,
-    getAllFavouriteBooks
+    getAllFavouriteBooks,
+    getAllUsers
 }

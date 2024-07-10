@@ -3,8 +3,12 @@ import {ApiError} from "../utils/ApiErrors.js";
 import {Book} from "../models/book.models.js";
 import {uploadOnCloudinary,deleteFromCloudinary} from "../utils/cloudinary.js"
 import { User } from "../models/user.models.js";
-import mongoose from "mongoose";
+import mongoose ,{isValidObjectId} from "mongoose";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import {Review} from "../models/review.models.js";
+import { Like } from "../models/like.models.js";
+import { Dislike } from "../models/dislike.models.js";
+
 
 // controller for publishing a book
 const publishABook = asyncHandler( async (req,res)=>{
@@ -49,11 +53,26 @@ const publishABook = asyncHandler( async (req,res)=>{
 // controller for deleting a book
 const deleteBook = asyncHandler(async (req, res) => {
     const { bookId } = req.params
-    if (!bookId) {
-        throw new ApiError(401,"Invalid Delete Request")
+    if (!isValidObjectId(bookId)) {
+        throw new ApiError(401,"invalid bookId recevied")
     }
-    await Book.findByIdAndDelete(bookId)
-    return res.status(200).json( new ApiResponse(200,{},"Book Successfully Deleted"))
+   try {
+     const updateUser = await User.updateMany({favouriteBooks:bookId},{
+        $pull:{
+            favouriteBooks : bookId
+        }
+     })
+     const deleteBook = await Book.findByIdAndDelete(bookId)
+     const deleteReviews = await Review.deleteMany({book:bookId})
+     const deleteLikes = await Like.deleteMany({book:bookId})
+     const deleteDislikes = await Dislike.deleteMany({book:bookId})
+     if (!updateUser && !deleteBook && !deleteReviews && !deleteDislikes && !deleteLikes) {
+         throw new ApiError(500,"Something went wrong while deleting the books")
+     }
+     return res.status(200).json( new ApiResponse(200,{},"Book Successfully Deleted"))
+   } catch (error) {
+    throw new ApiError(401,error)
+   }
 })
 
 
@@ -61,8 +80,8 @@ const deleteBook = asyncHandler(async (req, res) => {
 const getBookById = asyncHandler(async (req, res) => {
     const currentUser = new mongoose.Types.ObjectId(req.user?._id)
     const { bookId } = req.params
-    if (!bookId) {
-        throw new ApiError(401,"bookId doesnot recevied")
+    if (!isValidObjectId(bookId)) {
+        throw new ApiError(401," invalid bookId recevied")
     }
     const foundedBook = await Book.aggregate([
         {
@@ -306,8 +325,8 @@ const getAllBooks = asyncHandler(async (req, res) => {
 const saveFavouriteBook = asyncHandler(async(req,res)=>{
     const { bookId } = req.params
     const userId = new mongoose.Types.ObjectId(`${req.user?._id}`)
-    if(!bookId){
-        throw new ApiError(401,"Invalid save to favourites request")
+    if(!isValidObjectId(bookId)){
+        throw new ApiError(401,"invalid bookId recevied")
     }
     const foundedBook = await Book.findById(bookId)
     if(!foundedBook){
@@ -332,8 +351,8 @@ const saveFavouriteBook = asyncHandler(async(req,res)=>{
 const removeFavouriteBook = asyncHandler( async (req,res)=>{
     const { bookId } = req.params
     const userId = new mongoose.Types.ObjectId(`${req.user?._id}`)
-    if(!bookId){
-        throw new ApiError(401,"Invalid request")
+    if(!isValidObjectId(bookId)){
+        throw new ApiError(401,"invalid bookId recevied")
     }
     const foundedBook = await Book.findById(bookId)
     if(!foundedBook){
@@ -348,7 +367,6 @@ const removeFavouriteBook = asyncHandler( async (req,res)=>{
     .status(200)
     .json(new ApiResponse(200,{},"successfully removed from favourites"))
 })
-
 
 
 export {
