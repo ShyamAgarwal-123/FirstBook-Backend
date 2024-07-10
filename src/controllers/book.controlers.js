@@ -3,7 +3,7 @@ import {ApiError} from "../utils/ApiErrors.js";
 import {Book} from "../models/book.models.js";
 import {uploadOnCloudinary,deleteFromCloudinary} from "../utils/cloudinary.js"
 import { User } from "../models/user.models.js";
-import mongoose, { mongo } from "mongoose";
+import mongoose from "mongoose";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
 // controller for publishing a book
@@ -107,6 +107,7 @@ const getBookById = asyncHandler(async (req, res) => {
                                         username:1,
                                         fullname:1,
                                         avatar:1,
+                                        _id:1
                                     }
                                 }
                             ]
@@ -164,6 +165,7 @@ const getBookById = asyncHandler(async (req, res) => {
                             comment:1,
                             isLiked:1,
                             isDisliked:1
+
                         }
                     }
                 ]
@@ -180,7 +182,7 @@ const getBookById = asyncHandler(async (req, res) => {
 })
 // controllers for getting all books based on search query
 const getAllBooks = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 5, query, sortBy, sortType, userId} = req.query
+    const { page = 1, limit = 5, query, sortBy, sortType, genre} = req.query
 
     // filter object
     const filter = {};
@@ -189,6 +191,9 @@ const getAllBooks = asyncHandler(async (req, res) => {
             { title: { $regex: query, $options: 'i' } },
             { genre: { $regex: query, $options: 'i' } }
         ];
+    }
+    if (genre) {
+        filter.genre = { $regex: genre, $options: 'i' };
     }
     // sort object
     const sort = {};
@@ -199,7 +204,90 @@ const getAllBooks = asyncHandler(async (req, res) => {
     const skip = (page-1)*limit;
 
     try {
-        const books = await Book.find(filter).sort(sort).skip(skip).limit(parseInt(limit,10));
+        const books = await Book.aggregate([
+            {
+                $match: filter,
+                
+            },
+            {
+                $sort: sort
+            },
+            {
+                $skip:skip
+            },
+            {
+                $limit:parseInt(limit,10)
+            },
+            {
+                $lookup:{
+                    from:"users",
+                    localField:"author",
+                    foreignField:"_id",
+                    as:"author",
+                    pipeline:[
+                        {
+                            $project:{
+                                _id:1,
+                                userename:1,
+                                fullname:1,
+                                avatar:1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $lookup:{
+                    from:"reviews",
+                    localField:"reviews",
+                    foreignField:"_id",
+                    as:"reviews",
+                    pipeline:[
+                        {
+                            $project:{
+                                rating:1
+                            }
+                        },
+                        
+                    ]
+
+                }
+            },
+            {
+                $unwind :"$reviews"
+            },
+            {
+                $group:{
+                    _id:null,
+                    averageRating:{
+                        $avg: "$reviews.rating"
+                    }
+                }
+                
+            },
+            {
+                $addFields:{
+                    author:{
+                        $first:"$author"
+                    },
+                    totalReviews:{
+                        $size: "$reviews"
+                    },
+                }
+            },
+            {
+                $project:{
+                    author: 1,
+                    totalReviews:1,
+                    title:1,
+                    coverimage:1,
+                    price:1,
+                    averageRating:1
+                }
+            }
+        ]);
+        // .sort(sort).skip(skip).limit(parseInt(limit,10))
+
         return res
         .status(200)
         .json( new ApiResponse(

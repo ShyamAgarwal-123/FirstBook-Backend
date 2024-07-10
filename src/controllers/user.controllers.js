@@ -343,7 +343,7 @@ const userClickedChannelProfile = asyncHandler(async (req,res)=>{
     return res
     .status(200)
     .json(new ApiResponse(200,channel[0],"Channel is Successfully Fetched"))
-})
+}) // !! todo add functionality for getting all the books and top five reviews of that user
 //controller for updating user profile
 const updateAccountDetails = asyncHandler(async(req, res) => {
     const {fullName, email} = req.body
@@ -404,7 +404,8 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
                                     $project:{
                                         fullName: 1,
                                         username: 1,
-                                        avatar: 1
+                                        avatar: 1,
+                                        _id:1
                                     }
                                 }
                             ]
@@ -478,8 +479,37 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
 
 const getAllUsers = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
-    
-    //TODO: get all books based on query, sort, pagination
+
+    const filter = {};
+    if(query){
+            filter.$or = [
+                {username: {$regex: query, $options: 'i'}},
+                {fulname: {$regex: query, $options: 'i'}}
+            ]
+        
+    }
+
+    const sort ={};
+    if (sortBy) {
+        sort[sortBy] = sortType === "asc" ? 1 : -1
+    }
+
+    const skip = (page-1)*limit;
+
+    const user = await User.find(filter).sort(sort).skip(skip).limit(parseInt(limit, 10) )
+    if (!user.length) {
+        throw new ApiError(500,"Something Went wrong while fetching the users")
+    }
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200,
+            {
+                user,
+                totalUsers : user.length
+            },
+            "Users successfully fetched")
+    )
 })
 
 export {
