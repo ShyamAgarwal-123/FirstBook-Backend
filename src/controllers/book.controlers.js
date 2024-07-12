@@ -61,16 +61,20 @@ const deleteBook = asyncHandler(async (req, res) => {
             throw new ApiError(404,"Book doesnot Exist")
         }
         const isAvailable = existingBook.isAvailable
+        let updatedBook;
         if (isAvailable) {
-            await Book.findByIdAndUpdate(bookId,{
+            updatedBook = await Book.findByIdAndUpdate(bookId,{
                 isAvailable:false
             })
         }else{
-            await Book.findByIdAndUpdate(bookId,{
+            updatedBook = await Book.findByIdAndUpdate(bookId,{
                 isAvailable:true
             })
         }
-        return res.status(200).json( new ApiResponse(200,{},"Book Successfully Deleted"))
+        if (!updatedBook) {
+            throw new ApiError(500,"Something Went Wrong While Toggeling the book availabilty data in db")
+        }
+        return res.status(200).json( new ApiResponse(200,{},"Book Successfully Toggeled"))
     }catch (error) {
     throw new ApiError(401,error)
    }
