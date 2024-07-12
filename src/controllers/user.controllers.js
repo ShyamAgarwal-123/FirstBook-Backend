@@ -5,6 +5,9 @@ import { uploadOnCloudinary,deleteFromCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import fs from "fs"; 
+import { BookSubscription } from "../models/bookSubscription.models.js";
+import { isAbsolute } from "path";
 
 // functions for Access and Refresh Token generator
 const generateAccessToken = async (userid) =>{
@@ -44,6 +47,7 @@ const registerUser = asyncHandler( async (req,res)=>{
         $or : [{ username },{ email }]
     })
     if (existingUser) {
+        fs.unlinkSync(req.files.avatar[0].path)
         throw new ApiError(409,"Username or Email already exists")
     }
 
@@ -457,7 +461,9 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
                             title:1,
                             coverimage:1,
                             price:1,
-                            averageRating:1
+                            averageRating:1,
+                            _id:1,
+                            isAvailable:1
                         }
                     }
                 ]
@@ -511,6 +517,99 @@ const getAllUsers = asyncHandler(async (req, res) => {
             "Users successfully fetched")
     )
 })
+//controllers for getting all bought book
+const getAllBoughtBooks = asyncHandler(async(req,res)=>{
+    const allBoughtBooks = BookSubscription.aggregate([
+        {
+            $match:{
+                owner: new mongoose.Types.ObjectId(req.user?._id)
+            }
+        },
+        {
+            $lookup:{
+                from:"books",
+                localField: "book",
+                foreignField:"_id",
+                as:"book",
+                pipeline:[
+                    {
+                        $lookup:{
+                            from:"users",
+                            localField:"author",
+                            foreignField:"_id",
+                            as:"author",
+                            pipeline:[
+                                {
+                                    $project:{
+                                        username:1,
+                                        fullname:1,
+                                        avatar:1,
+                                        _id:1
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $lookup:{
+                            from:"reviews",
+                            localField:"reviews",
+                            foreignField:"_id",
+                            as:"reviews",
+                            pipeline:[
+                                {
+                                    $project:{
+                                        rating:1
+                                    }
+                                },
+                                
+                            ]
+
+                        }
+                    },
+                    {
+                        $unwind :"$reviews"
+                    },
+                    {
+                        $group:{
+                            _id:null,
+                            averageRating:{
+                                $avg: "$reviews.rating"
+                            }
+                        }
+                    },
+                    {
+                        $addFields:{
+                            author:{
+                                $first:"$author"
+                            },totalReviews:{
+                                $size: "$reviews"
+                            },
+                        }
+                    },
+                    {
+                        $project:{
+                            author: 1,
+                            totalReviews:1,
+                            title:1,
+                            coverimage:1,
+                            price:1,
+                            averageRating:1,
+                            _id:1
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+    if (!allBoughtBooks.length) {
+        throw new ApiError(500,"Somthig went wrong while getting Bought Books")
+    }
+    return res.status(200)
+    .json(
+        new ApiResponse(200,allBoughtBooks,"Successfuly Fetched Bought Books")
+    )
+})
 
 export {
     registerUser,
@@ -523,5 +622,6 @@ export {
     userClickedProfile,
     updateAccountDetails,
     getAllFavouriteBooks,
-    getAllUsers
+    getAllUsers,
+    getAllBoughtBooks
 }

@@ -5,9 +5,7 @@ import {uploadOnCloudinary,deleteFromCloudinary} from "../utils/cloudinary.js"
 import { User } from "../models/user.models.js";
 import mongoose ,{isValidObjectId} from "mongoose";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import {Review} from "../models/review.models.js";
-import { Like } from "../models/like.models.js";
-import { Dislike } from "../models/dislike.models.js";
+import { BookSubscription } from "../models/bookSubscription.models.js";
 
 
 // controller for publishing a book
@@ -40,7 +38,8 @@ const publishABook = asyncHandler( async (req,res)=>{
         price,
         coverImage : coverImage.url,
         coverImage_id : coverImage.public_id,
-        author: user_id
+        author: user_id,
+        isAvailable:true
     })
     if (!bookCreated) {
         throw new ApiError(500,"Something went wrong while registering the user")
@@ -50,27 +49,29 @@ const publishABook = asyncHandler( async (req,res)=>{
     )
 })
 
-// controller for deleting a book
+// controller for toggel a book availibility
 const deleteBook = asyncHandler(async (req, res) => {
     const { bookId } = req.params
     if (!isValidObjectId(bookId)) {
         throw new ApiError(401,"invalid bookId recevied")
     }
-   try {
-     const updateUser = await User.updateMany({favouriteBooks:bookId},{
-        $pull:{
-            favouriteBooks : bookId
+    try {
+        const existingBook = await Book.findById(bookId);
+        if(!existingBook){
+            throw new ApiError(404,"Book doesnot Exist")
         }
-     })
-     const deleteBook = await Book.findByIdAndDelete(bookId)
-     const deleteReviews = await Review.deleteMany({book:bookId})
-     const deleteLikes = await Like.deleteMany({book:bookId})
-     const deleteDislikes = await Dislike.deleteMany({book:bookId})
-     if (!updateUser && !deleteBook && !deleteReviews && !deleteDislikes && !deleteLikes) {
-         throw new ApiError(500,"Something went wrong while deleting the books")
-     }
-     return res.status(200).json( new ApiResponse(200,{},"Book Successfully Deleted"))
-   } catch (error) {
+        const isAvailable = existingBook.isAvailable
+        if (isAvailable) {
+            await Book.findByIdAndUpdate(bookId,{
+                isAvailable:false
+            })
+        }else{
+            await Book.findByIdAndUpdate(bookId,{
+                isAvailable:true
+            })
+        }
+        return res.status(200).json( new ApiResponse(200,{},"Book Successfully Deleted"))
+    }catch (error) {
     throw new ApiError(401,error)
    }
 })
@@ -101,6 +102,7 @@ const getBookById = asyncHandler(async (req, res) => {
                             username:1,
                             fullname:1,
                             avatar:1,
+                            _id:1
                         }
                     }
                 ]
@@ -183,20 +185,23 @@ const getBookById = asyncHandler(async (req, res) => {
                             rating:1,
                             comment:1,
                             isLiked:1,
-                            isDisliked:1
-
+                            isDisliked:1,
                         }
                     }
                 ]
             }
         }
     ])
-
     if(!foundedBook){
         throw new ApiError(401,"book does not exist")
     }
+    const isBought = false;
+    const bookSubscription = await BookSubscription.findOne({owner:currentUser._id,book:bookId})
+    if(bookSubscription){
+        isBought = true;
+    }
     return res.status(200).json(
-        new ApiResponse(200,foundedBook,"Book successfully fetched")
+        new ApiResponse(200,{foundedBook,isBought},"Book successfully fetched")
     )
 })
 // controllers for getting all books based on search query

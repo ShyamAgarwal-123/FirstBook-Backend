@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true,"Fullname is Required"],
         trim: true,
+        index: true
     },
     favouriteBooks:[
         {

@@ -36,7 +36,11 @@ const bookSchema = new mongoose.Schema({
             type:mongoose.Schema.Types.ObjectId,
             ref:"Review"
         }
-    ]
+    ],
+    isAvailable:{
+        type:Boolean,
+        required:true
+    }
 
 },{timestamps:true})
 
