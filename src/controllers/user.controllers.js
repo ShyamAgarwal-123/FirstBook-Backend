@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import fs from "fs"; 
 import { BookSubscription } from "../models/bookSubscription.models.js";
-import { isAbsolute } from "path";
+
 
 // functions for Access and Refresh Token generator
 const generateAccessToken = async (userid) =>{
@@ -90,7 +90,7 @@ const registerUser = asyncHandler( async (req,res)=>{
     }
     //return response
     return res.status(200).json(
-        new ApiResponse(200,userCreated,"User is Successfully Registerd")
+        new ApiResponse(200,{},"User is Successfully Registerd")
     )
 
 })
@@ -99,6 +99,8 @@ const registerUser = asyncHandler( async (req,res)=>{
 const loginUser = asyncHandler( async (req,res)=>{ 
     //take login credentials from the user(password & (email,username))
     const {email,password} = req.body
+    console.log({"email":  email,
+        "password" : password})
     //check all fileds are their 
     if(password ==="" || email===""){
         throw new ApiError(400,"All Fields are Required")

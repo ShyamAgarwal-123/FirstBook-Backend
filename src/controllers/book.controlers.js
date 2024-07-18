@@ -10,17 +10,12 @@ import { BookSubscription } from "../models/bookSubscription.models.js";
 
 // controller for publishing a book
 const publishABook = asyncHandler( async (req,res)=>{
-    const user_id = new mongoose.Types.ObjectId(req.user?._id)
+    const user_id = new mongoose.Types.ObjectId(`${req.user?._id}`)
     const { title, content , genre , price} = req.body
     if (
         [title,content,genre,price].some((field)=> field?.trim() === "")
     ) {
         throw new ApiError(400,"All Field is Required")
-    }
-    const existingBook = await Book.findOne({title: title})
-    if (existingBook) {
-        throw new ApiError(409,"Username or Email already exists")
-
     }
     const coverImageLocalPath = req.file?.path
     if (!coverImageLocalPath) {
@@ -330,6 +325,34 @@ const getAllBooks = asyncHandler(async (req, res) => {
         throw new ApiError(500,error)
     }
 })
+//controllers for getting 5 books
+const bookList = asyncHandler( async (req, res)=>{
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+  
+    try {
+      const books = await Book.find()
+        .skip((page - 1) * limit)
+        .limit(limit);
+      const totalBooks = await Book.countDocuments();
+  
+      return res.status(200)
+      .json(
+        new ApiResponse(
+            200,
+            {
+                books,
+                totalPages: Math.ceil(totalBooks / limit),
+                currentPage: page,
+            },
+            `Booklist is successfully Fetched For page no.${page}`
+
+        )
+      );
+    } catch (error) {
+      return res.status(500).json({ message: error.message });
+    }
+})
 // controller for saving favourite book
 const saveFavouriteBook = asyncHandler(async(req,res)=>{
     const { bookId } = req.params
@@ -384,5 +407,6 @@ export {
     getBookById,
     deleteBook,
     saveFavouriteBook,
-    removeFavouriteBook
+    removeFavouriteBook,
+    bookList
 }

@@ -5,7 +5,8 @@ import {
     getBookById,
     deleteBook,
     saveFavouriteBook,
-    removeFavouriteBook
+    removeFavouriteBook,
+    bookList
  } from "../controllers/book.controlers.js";
  
 import {upload} from "../middlewares/multer.middlewares.js"
@@ -17,5 +18,6 @@ bookRouter.use(verifyJWT); // Apply verifyJWT middleware to all routes in this f
 
 // route for publishing a book
 bookRouter.route("/publish").post(upload.single("coverImage"),publishABook)
+bookRouter.route("/").get(bookList)
 
 export default bookRouter;
