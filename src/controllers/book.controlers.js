@@ -325,15 +325,101 @@ const getAllBooks = asyncHandler(async (req, res) => {
         throw new ApiError(500,error)
     }
 })
-//controllers for getting 5 books
+//controllers for getting 10 books
 const bookList = asyncHandler( async (req, res)=>{
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 5;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const skip = parseInt((page - 1) * limit)
   
     try {
-      const books = await Book.find()
-        .skip((page - 1) * limit)
-        .limit(limit);
+        const books = await Book.aggregate(
+            [
+                {
+                  "$skip": skip
+                },
+                {
+                  "$limit": limit
+                },
+                {
+                  "$lookup": {
+                    "from": "users",
+                    "localField": "author",
+                    "foreignField": "_id",
+                    "as": "author",
+                    "pipeline": [
+                      {
+                        "$project": {
+                          "_id": 1,
+                          "username": 1,
+                          "fullname": 1,
+                          "avatar": 1
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "$addFields": {
+                    "totalReviews": {
+                      "$size": "$reviews"
+                    }
+                  }
+                },
+                {
+                  "$lookup": {
+                    "from": "reviews",
+                    "localField": "reviews",
+                    "foreignField": "_id",
+                    "as": "reviews",
+                    "pipeline": [
+                      {
+                        "$project": {
+                          "rating": 1
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "$addFields": {
+                    "author": {
+                      "$first": "$author"
+                    }
+                  }
+                },
+                {
+                  "$addFields": {
+                    "averageRating": {
+                      "$cond": {
+                        "if": {
+                          "$gt": [
+                            { "$size": "$reviews" },
+                            0
+                          ]
+                        },
+                        "then": {
+                          "$avg": "$reviews.rating"
+                        },
+                        "else": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "$project": {
+                    "author": 1,
+                    "totalReviews": 1,
+                    "title": 1,
+                    "coverImage": 1,
+                    "price": 1,
+                    "averageRating": 1,
+                    "genre": 1,
+                    "isAvailable": 1
+                  }
+                }
+              ]
+        );
       const totalBooks = await Book.countDocuments();
   
       return res.status(200)
