@@ -205,7 +205,7 @@ const getBookById = asyncHandler(async (req, res) => {
 })
 // controllers for getting all books based on search query
 const getAllBooks = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 5, query, sortBy, sortType, genre} = req.query
+    const { page = 1, limit = 10, query, sortBy, sortType, genre} = req.query
 
     // filter object
     const filter = {};
@@ -229,100 +229,111 @@ const getAllBooks = asyncHandler(async (req, res) => {
     try {
         const books = await Book.aggregate([
             {
-                $match: filter,
+                "$match": filter,
                 
             },
             {
-                $sort: sort
+                "$sort": sort 
             },
             {
-                $skip:skip
-            },
-            {
-                $limit:parseInt(limit,10)
-            },
-            {
-                $lookup:{
-                    from:"users",
-                    localField:"author",
-                    foreignField:"_id",
-                    as:"author",
-                    pipeline:[
-                        {
-                            $project:{
-                                _id:1,
-                                userename:1,
-                                fullname:1,
-                                avatar:1
-                            }
-                        }
-                    ]
-                }
-            },
-            {
-                $lookup:{
-                    from:"reviews",
-                    localField:"reviews",
-                    foreignField:"_id",
-                    as:"reviews",
-                    pipeline:[
-                        {
-                            $project:{
-                                rating:1
-                            }
-                        },
-                        
-                    ]
-
-                }
-            },
-            {
-                $unwind :"$reviews"
-            },
-            {
-                $group:{
-                    _id:null,
-                    averageRating:{
-                        $avg: "$reviews.rating"
+                "$skip": skip
+              },
+              {
+                "$limit": parseInt(limit)
+              },
+              {
+                "$lookup": {
+                  "from": "users",
+                  "localField": "author",
+                  "foreignField": "_id",
+                  "as": "author",
+                  "pipeline": [
+                    {
+                      "$project": {
+                        "_id": 1,
+                        "username": 1,
+                        "fullname": 1,
+                        "avatar": 1
+                      }
                     }
+                  ]
                 }
-                
-            },
-            {
-                $addFields:{
-                    author:{
-                        $first:"$author"
-                    },
-                    totalReviews:{
-                        $size: "$reviews"
-                    },
+              },
+              {
+                "$addFields": {
+                  "totalReviews": {
+                    "$size": "$reviews"
+                  }
                 }
-            },
-            {
-                $project:{
-                    author: 1,
-                    totalReviews:1,
-                    title:1,
-                    coverimage:1,
-                    price:1,
-                    averageRating:1
+              },
+              {
+                "$lookup": {
+                  "from": "reviews",
+                  "localField": "reviews",
+                  "foreignField": "_id",
+                  "as": "reviews",
+                  "pipeline": [
+                    {
+                      "$project": {
+                        "rating": 1
+                      }
+                    }
+                  ]
                 }
-            }
+              },
+              {
+                "$addFields": {
+                  "author": {
+                    "$first": "$author"
+                  }
+                }
+              },
+              {
+                "$addFields": {
+                  "averageRating": {
+                    "$cond": {
+                      "if": {
+                        "$gt": [
+                          { "$size": "$reviews" },
+                          0
+                        ]
+                      },
+                      "then": {
+                        "$avg": "$reviews.rating"
+                      },
+                      "else": 0
+                    }
+                  }
+                }
+              },
+              {
+                "$project": {
+                  "author": 1,
+                  "totalReviews": 1,
+                  "title": 1,
+                  "coverImage": 1,
+                  "price": 1,
+                  "averageRating": 1,
+                  "genre": 1,
+                  "isAvailable": 1
+                }
+              }
         ]);
-        // .sort(sort).skip(skip).limit(parseInt(limit,10))
+        const totalBooks = await Book.countDocuments();
 
         return res
         .status(200)
         .json( new ApiResponse(
             200,
             {
-                books:books,
-                totalBooks : books.length
+                books,
+                totalPages: Math.ceil(totalBooks / limit),
+                currentPage: parseInt(page),
             },
             "Books fetched Successfully"))
 
     } catch (error) {
-        throw new ApiError(500,error)
+        throw new ApiError(500,error.message)
     }
 })
 //controllers for getting 10 books
