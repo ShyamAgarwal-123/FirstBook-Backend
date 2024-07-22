@@ -21,7 +21,7 @@ const submitReview = asyncHandler(async (req,res)=>{
         throw new ApiError(400,"Book is not Available")
     }
     if(comment?.trim() ==="" || rating?.trim() ===""){
-        throw new ApiError(400,"All Fields are Required")
+        throw new ApiError(401,"All Fields are Required")
     }
 
     const review = await Review.create(
@@ -53,12 +53,9 @@ const deleteReviewById = asyncHandler(async (req,res)=>{
     if (!isValidObjectId(reviewId)) {
         throw new ApiError(400,"Invalid review Id")
     }
-    const review = await Review.findById(reviewId)
+    const review = await Review.findOne({_id : reviewId,owner:req.user?._id})
     if (!review) {
         throw new ApiError(404,"Review Does not Exist")
-    }
-    if(review.owner !== new mongoose.Types.ObjectId(req.user?._id)){
-        throw new ApiError(401,"Unauthorised Request")
     }
     const updatedBook = await Book.updateOne({reviews:reviewId},{
         $pull:{
