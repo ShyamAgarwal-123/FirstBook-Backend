@@ -12,6 +12,6 @@ const reviewRouter = Router();
 reviewRouter.use(verifyJWT); // Apply verifyJWT middleware to all routes in this file
 
 reviewRouter.route("/:bookId").get(getAllReviews).post(submitReview);
-reviewRouter.route("/c/:reviewId").delete(deleteReviewById).patch(updateReviewById);
+reviewRouter.route("/:reviewId").delete(deleteReviewById).patch(updateReviewById);
 
 export default reviewRouter;
