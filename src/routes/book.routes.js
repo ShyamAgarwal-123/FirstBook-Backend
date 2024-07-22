@@ -18,6 +18,7 @@ bookRouter.use(verifyJWT); // Apply verifyJWT middleware to all routes in this f
 
 // route for publishing a book
 bookRouter.route("/publish").post(upload.single("coverImage"),publishABook)
-bookRouter.route("/").get(bookList)
+bookRouter.route("/").get(getAllBooks)
+bookRouter.route("/:bookId").get(getBookById)
 
 export default bookRouter;
