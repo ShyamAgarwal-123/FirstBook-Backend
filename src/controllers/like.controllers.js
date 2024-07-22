@@ -1,6 +1,6 @@
 import mongoose, {isValidObjectId} from "mongoose"
-import { Like } from "../models/like.model.js"
-import {ApiError} from "../utils/ApiError.js"
+import {Like} from "../models/like.models.js"
+import {ApiError} from "../utils/ApiErrors.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import { Review } from "../models/review.models.js"
