@@ -91,7 +91,7 @@ const getBookById = asyncHandler(async (req, res) => {
         },
         {
             $lookup:{
-                from:"User",
+                from:"users",
                 localField:"author",
                 foreignField:"_id",
                 as:"author",
@@ -189,7 +189,30 @@ const getBookById = asyncHandler(async (req, res) => {
                     }
                 ]
             }
-        }
+        },
+        {
+          $addFields: {
+            averageRating: {
+              $cond: {
+                if: {
+                  $gt: [
+                    {
+                      $size: "$reviews"
+                    },
+                    0
+                  ]
+                },
+                then: {
+                  $avg: "$reviews.rating"
+                },
+                else: 0
+              }
+            },
+            totalReviews: {
+              $size: "$reviews"
+            }
+          }
+        },
     ])
     if(!foundedBook){
         throw new ApiError(401,"book does not exist")
@@ -228,96 +251,97 @@ const getAllBooks = asyncHandler(async (req, res) => {
 
     try {
         const books = await Book.aggregate([
-            {
-                "$match": filter,
-                
-            },
-            {
-                "$sort": sort 
-            },
-            {
-                "$skip": skip
-              },
-              {
-                "$limit": parseInt(limit)
-              },
-              {
-                "$lookup": {
-                  "from": "users",
-                  "localField": "author",
-                  "foreignField": "_id",
-                  "as": "author",
-                  "pipeline": [
-                    {
-                      "$project": {
-                        "_id": 1,
-                        "username": 1,
-                        "fullname": 1,
-                        "avatar": 1
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                "$addFields": {
-                  "totalReviews": {
-                    "$size": "$reviews"
+          {
+            $match: filter,
+          },
+          {
+            $skip: skip
+          },
+          {
+            $limit: parseInt(limit)
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "author",
+              foreignField: "_id",
+              as: "author",
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    username: 1,
+                    fullname: 1,
+                    avatar: 1
                   }
                 }
-              },
-              {
-                "$lookup": {
-                  "from": "reviews",
-                  "localField": "reviews",
-                  "foreignField": "_id",
-                  "as": "reviews",
-                  "pipeline": [
-                    {
-                      "$project": {
-                        "rating": 1
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                "$addFields": {
-                  "author": {
-                    "$first": "$author"
+              ]
+            }
+          },
+          {
+            $addFields: {
+              totalReviews: {
+                $size: "$reviews"
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: "reviews",
+              localField: "reviews",
+              foreignField: "_id",
+              as: "reviews",
+              pipeline: [
+                {
+                  $project: {
+                    rating: 1
                   }
                 }
-              },
-              {
-                "$addFields": {
-                  "averageRating": {
-                    "$cond": {
-                      "if": {
-                        "$gt": [
-                          { "$size": "$reviews" },
-                          0
-                        ]
+              ]
+            }
+          },
+          {
+            $addFields: {
+              author: {
+                $first: "$author"
+              }
+            }
+          },
+          {
+            $addFields: {
+              averageRating: {
+                $cond: {
+                  if: {
+                    $gt: [
+                      {
+                        $size: "$reviews"
                       },
-                      "then": {
-                        "$avg": "$reviews.rating"
-                      },
-                      "else": 0
-                    }
-                  }
-                }
-              },
-              {
-                "$project": {
-                  "author": 1,
-                  "totalReviews": 1,
-                  "title": 1,
-                  "coverImage": 1,
-                  "price": 1,
-                  "averageRating": 1,
-                  "genre": 1,
-                  "isAvailable": 1
+                      0
+                    ]
+                  },
+                  then: {
+                    $avg: "$reviews.rating"
+                  },
+                  else: 0
                 }
               }
+            }
+          },
+          {
+            $project: {
+              author: 1,
+              totalReviews: 1,
+              title: 1,
+              coverImage: 1,
+              price: 1,
+              averageRating: 1,
+              genre: 1,
+              isAvailable: 1
+            }
+          },
+          {
+            $sort: sort 
+          }
         ]);
         const totalBooks = await Book.countDocuments();
 
