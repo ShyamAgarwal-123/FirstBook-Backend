@@ -8,8 +8,12 @@ import {
     getCurrentUser,
     userAvatarUpdate,
     userClickedProfile,
+    getAllFavouriteBooks,
     updateAccountDetails,
-    getAllUsers
+    getAllMyBooks,
+    getAllUsers,
+    getAllBoughtBooks
+  
 } from "../controllers/user.controllers.js";
 import {upload} from "../middlewares/multer.middlewares.js"
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
@@ -59,6 +63,22 @@ userRouter.route("/c/:username").get(verifyJWT,userClickedProfile)
 
 // route for updating userProfile
 userRouter.route("/update-account").patch(verifyJWT,updateAccountDetails)
+
+// route for getting all the favBooks
+userRouter.route("/favBooks/").get(verifyJWT,getAllFavouriteBooks);
+
+// route for getting all the favBooks
+userRouter.route("/myBooks/").get(verifyJWT,getAllMyBooks);
+
+// route for getting all the users
+userRouter.route("/").get(verifyJWT,getAllUsers)
+
+// route for getting all the purchased books
+userRouter.route("/purchasedBooks/").get(verifyJWT,getAllBoughtBooks)
+
+
+
+
 
 
 export default userRouter;

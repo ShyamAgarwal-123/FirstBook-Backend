@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import fs from "fs"; 
 import { BookSubscription } from "../models/bookSubscription.models.js";
-
+import { Book } from "../models/book.models.js";
 
 // functions for Access and Refresh Token generator
 const generateAccessToken = async (userid) =>{
@@ -99,10 +99,8 @@ const registerUser = asyncHandler( async (req,res)=>{
 const loginUser = asyncHandler( async (req,res)=>{ 
     //take login credentials from the user(password & (email,username))
     const {email,password} = req.body
-    console.log({"email":  email,
-        "password" : password})
     //check all fileds are their 
-    if(password ==="" || email===""){
+    if(password?.trim() ==="" || email?.trim() ===""){
         throw new ApiError(400,"All Fields are Required")
     }
     //validate the user from data base
@@ -152,7 +150,8 @@ const logOutUser = asyncHandler(async (req,res)=>{
     })
     const option = {
         httpOnly: true,
-        secure: true
+        secure: true,
+        path: '/',
     }
     return res
     .status(200)
@@ -167,6 +166,7 @@ const logOutUser = asyncHandler(async (req,res)=>{
 //controller for refresh AccessToken
 const refreshAccessToken= asyncHandler(async (req,res)=>{
     const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+    
     if (!incomingRefreshToken) {
         throw new ApiError(400,"Unauthorized Request")
     }
@@ -204,11 +204,11 @@ const refreshAccessToken= asyncHandler(async (req,res)=>{
 //controller for password update
 const userPasswordUpdate =asyncHandler( async(req,res)=>{
     const {oldPassword,newPassword} = req.body;
-    if (newPassword === "" || oldPassword ==="") {
-        throw new ApiError(401,"Password is Required")
+    if (newPassword?.trim() === "" || oldPassword?.trim() ==="") {
+        throw new ApiError(400,"Password is Required")
     }
     if (oldPassword === newPassword) {
-        throw new ApiError(401,"New Password is Required") 
+        throw new ApiError(402,"New Password is Required") 
     }
     const user = await User.findById(req.user?._id)
     if (!user) {
@@ -217,7 +217,7 @@ const userPasswordUpdate =asyncHandler( async(req,res)=>{
     const isPassword = await user.isPasswordCorrect(oldPassword);
 
     if (!isPassword) {
-        throw new ApiError(400,"Password is Incorrect")
+        throw new ApiError(403,"Password is Incorrect")
     }
     user.password = newPassword;
     await user.save({validateBeforeSave: false});
@@ -266,6 +266,9 @@ const userAvatarUpdate =asyncHandler( async(req,res)=>{
         }},
         {new: true}
     ).select("-password -refreshToken")
+    if (!user) {
+        throw new ApiError(402,"Something Went wrong while updatng the user details")
+    }
     await deleteFromCloudinary(oldAvatarFile);
     return res
     .status(200)
@@ -279,11 +282,10 @@ const userAvatarUpdate =asyncHandler( async(req,res)=>{
 const userClickedProfile = asyncHandler(async (req,res)=>{
     const {username} =req.params
     const currentUser = new mongoose.Types.ObjectId(req.user?._id)
-    console.log(username);
     if(!username){
         throw ApiError(400,"User is missing")
     }
-    const profile = await User.aggregate([
+    let profile = await User.aggregate([
         {
             $match:{
                 username: username.toLowerCase()
@@ -317,7 +319,7 @@ const userClickedProfile = asyncHandler(async (req,res)=>{
                 
                 followedToCount:
                 {
-                  $size : "followedTo"
+                  $size : "$followedTo"
                     
                 },
                 isFollower:
@@ -346,16 +348,107 @@ const userClickedProfile = asyncHandler(async (req,res)=>{
     if (!profile?.length) {
         throw new ApiError(400,"profile doesnot exist")
     }
+    const clickedUserId = new mongoose.Types.ObjectId(profile[0]?._id);
+    const books = await Book.aggregate([
+        {
+            $match:{
+                author: clickedUserId
+            }
+          }, 
+          {
+            $lookup: {
+              from: "users",
+              localField: "author",
+              foreignField: "_id",
+              as: "author",
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    username: 1,
+                    fullname: 1,
+                    avatar: 1
+                  }
+                }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              totalReviews: {
+                $size: "$reviews"
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: "reviews",
+              localField: "reviews",
+              foreignField: "_id",
+              as: "reviews",
+              pipeline: [
+                {
+                  $project: {
+                    rating: 1
+                  }
+                }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              author: {
+                $first: "$author"
+              }
+            }
+          },
+          {
+            $addFields: {
+              averageRating: {
+                $cond: {
+                  if: {
+                    $gt: [
+                      {
+                        $size: "$reviews"
+                      },
+                      0
+                    ]
+                  },
+                  then: {
+                    $avg: "$reviews.rating"
+                  },
+                  else: 0
+                }
+              }
+            }
+          },
+          {
+            $project: {
+              author: 1,
+              totalReviews: 1,
+              title: 1,
+              coverImage: 1,
+              price: 1,
+              averageRating: 1,
+              genre: 1,
+              isAvailable: 1
+            }
+          },
+    ])
+    profile = profile[0];
     return res
     .status(200)
-    .json(new ApiResponse(200,channel[0],"Profile is Successfully Fetched"))
+    .json(new ApiResponse(200,{
+        profile,
+        books
+    },"Profile is Successfully Fetched"))
 }) // !! todo add functionality for getting all the books and top five reviews of that user
 //controller for updating user profile
 const updateAccountDetails = asyncHandler(async(req, res) => {
-    const {fullName, email} = req.body
+    const {email} = req.body
 
-    if (!fullName || !email) {
-        throw new ApiError(400, "fields are empty")
+    if (email?.trim() === "") {
+        throw new ApiError(400, "field is empty")
     }
 
     const existingUser =  await User.countDocuments({email: email})
@@ -367,14 +460,15 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
         req.user?._id,
         {
             $set: {
-                fullName,
                 email
             }
         },
         {new: true}
         
     ).select("-password")
-
+    if (!user) {
+        throw new ApiError(402,"Something Went wrong while updatng the user details")
+    }
     return res
     .status(200)
     .json(new ApiResponse(
@@ -383,13 +477,42 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
         "Account details updated successfully"
     ))
 });
-
+   
 //controller for getting all favouriteBooks
 const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
+
+    const { page = 1, limit = 10, query, sortBy, sortType, genre} = req.query
+
+    // filter object
+    const filter = {};
+    if (query) {
+        filter.$or = [
+            { title: { $regex: query, $options: 'i' } },
+            { genre: { $regex: query, $options: 'i' } }
+        ];
+    }
+    if (genre) {
+        filter.genre = { $regex: genre, $options: 'i' };
+    }
+    // sort object
+    const sort = {};
+    if (sortBy) {
+        sort[sortBy] = sortType === 'asc' ? 1 : -1;
+    }
+    //pagination
+    const skip = (page-1)*limit;
+
     const user = await User.aggregate([
         {
             $match:{
                 _id : new mongoose.Types.ObjectId(req.user?._id)
+            }
+        },
+        {
+            $addFields:{
+                totalBooks:{
+                    $size: "$favouriteBooks"
+                }
             }
         },
         {
@@ -400,6 +523,20 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
                 as: "favouriteBooks",
                 pipeline:[
                     {
+                        $match: filter,
+                    },
+                    {
+                        $match:{
+                          isAvailable : true
+                        }
+                    },
+                    {
+                        $skip: skip
+                    },
+                    {
+                        $limit: parseInt(limit)
+                    },
+                    {
                         $lookup:{
                             from : "users",
                             localField: "author",
@@ -408,7 +545,7 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
                             pipeline:[
                                 {
                                     $project:{
-                                        fullName: 1,
+                                        fullname: 1,
                                         username: 1,
                                         avatar: 1,
                                         _id:1
@@ -417,6 +554,13 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
                             ]
                         }
                         
+                    },
+                    {
+                        $addFields: {
+                          totalReviews: {
+                            $size: "$reviews"
+                          }
+                        }
                     },
                     {
                         $lookup:{
@@ -436,38 +580,47 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
                         }
                     },
                     {
-                        $unwind :"$reviews"
-                    },
-                    {
-                        $group:{
-                            _id:null,
-                            averageRating:{
+                        $addFields: {
+                          author: {
+                            $first: "$author"
+                          }
+                        }
+                      },
+                      {
+                        $addFields: {
+                          averageRating: {
+                            $cond: {
+                              if: {
+                                $gt: [
+                                  {
+                                    $size: "$reviews"
+                                  },
+                                  0
+                                ]
+                              },
+                              then: {
                                 $avg: "$reviews.rating"
+                              },
+                              else: 0
                             }
+                          }
                         }
-                    },
-                    {
-                        $addFields:{
-                            author:{
-                                $first:"$author"
-                            },
-                            totalReviews:{
-                                $size: "$reviews"
-                            },
+                      },
+                      {
+                        $project: {
+                          author: 1,
+                          totalReviews: 1,
+                          title: 1,
+                          coverImage: 1,
+                          price: 1,
+                          averageRating: 1,
+                          genre: 1,
+                          isAvailable: 1
                         }
-                    },
-                    {
-                        $project:{
-                            author: 1,
-                            totalReviews:1,
-                            title:1,
-                            coverimage:1,
-                            price:1,
-                            averageRating:1,
-                            _id:1,
-                            isAvailable:1
-                        }
-                    }
+                      },
+                      {
+                        $sort: sort 
+                      }
                 ]
             }
         }
@@ -475,18 +628,20 @@ const getAllFavouriteBooks = asyncHandler( async (req,res)=>{
     if (!user.length) {
         throw new ApiError(500,"Somthig went wrong while getting Favourite Books")
     }
-    const allFavouriteBooks = user.favouriteBooks
-    if(!allFavouriteBooks.length){
-        throw new ApiError(500,"Somthig went wrong while getting Favourite Books")
-    }
+    const books = user[0]?.favouriteBooks;
+    const totalBooks = user[0]?.totalBooks;
     return res.status(200)
     .json(
-        new ApiResponse(200,allFavouriteBooks,"Favourite Books ")
+        new ApiResponse(200,{
+            books,
+            totalPages: Math.ceil(totalBooks / limit) || 1,
+            currentPage: parseInt(page),
+        },"Favourite Books ")
     )
 })   
 // controller for getting all the user based on search
 const getAllUsers = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
+    const { page = 1, limit = 9, query, sortBy, sortType, userId } = req.query
 
     const filter = {};
     if(query){
@@ -504,113 +659,290 @@ const getAllUsers = asyncHandler(async (req, res) => {
 
     const skip = (page-1)*limit;
 
-    const user = await User.find(filter).sort(sort).skip(skip).limit(parseInt(limit, 10) )
-    if (!user.length) {
+    const users = await User.find(filter).select("-password -favouriteBooks -refreshToken").sort(sort).skip(skip).limit(parseInt(limit, 10) )
+    if (!users.length) {
         throw new ApiError(500,"Something Went wrong while fetching the users")
     }
+    const totalUsers = await User.countDocuments();
     return res
     .status(200)
     .json(
         new ApiResponse(200,
             {
-                user,
-                totalUsers : user.length
+                users,
+                totalPages: Math.ceil(totalUsers / limit) || 1,
+                currentPage: parseInt(page),
             },
             "Users successfully fetched")
     )
 })
 //controllers for getting all bought book
 const getAllBoughtBooks = asyncHandler(async(req,res)=>{
-    const allBoughtBooks = BookSubscription.aggregate([
-        {
-            $match:{
-                owner: new mongoose.Types.ObjectId(req.user?._id)
-            }
-        },
-        {
-            $lookup:{
-                from:"books",
-                localField: "book",
-                foreignField:"_id",
-                as:"book",
-                pipeline:[
-                    {
-                        $lookup:{
-                            from:"users",
-                            localField:"author",
-                            foreignField:"_id",
-                            as:"author",
-                            pipeline:[
-                                {
-                                    $project:{
-                                        username:1,
-                                        fullname:1,
-                                        avatar:1,
-                                        _id:1
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        $lookup:{
-                            from:"reviews",
-                            localField:"reviews",
-                            foreignField:"_id",
-                            as:"reviews",
-                            pipeline:[
-                                {
-                                    $project:{
-                                        rating:1
-                                    }
-                                },
-                                
-                            ]
+  const { page = 1, limit = 9} = req.query
 
-                        }
-                    },
-                    {
-                        $unwind :"$reviews"
-                    },
-                    {
-                        $group:{
-                            _id:null,
-                            averageRating:{
-                                $avg: "$reviews.rating"
-                            }
-                        }
-                    },
-                    {
-                        $addFields:{
-                            author:{
-                                $first:"$author"
-                            },totalReviews:{
-                                $size: "$reviews"
-                            },
-                        }
-                    },
-                    {
-                        $project:{
-                            author: 1,
-                            totalReviews:1,
-                            title:1,
-                            coverimage:1,
-                            price:1,
-                            averageRating:1,
-                            _id:1
-                        }
-                    }
-                ]
+  //pagination
+  const skip = (page-1)*limit;
+  const purchasedBooks = await BookSubscription.aggregate([
+    {
+      $match:{
+        owner: new mongoose.Types.ObjectId(req.user?._id)
+      }
+    },
+    {
+      $lookup:{
+        from: "books",
+        localField: "book",
+        foreignField: "_id",
+        as: "book",
+        pipeline:[
+          {
+            $lookup: {
+              from: "users",
+              localField: "author",
+              foreignField: "_id",
+              as: "author",
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    username: 1,
+                    fullname: 1,
+                    avatar: 1
+                  }
+                }
+              ]
             }
+          },
+          {
+            $addFields: {
+              totalReviews: {
+                $size: "$reviews"
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: "reviews",
+              localField: "reviews",
+              foreignField: "_id",
+              as: "reviews",
+              pipeline: [
+                {
+                  $project: {
+                    rating: 1
+                  }
+                }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              author: {
+                $first: "$author"
+              }
+            }
+          },
+          {
+            $addFields: {
+              averageRating: {
+                $cond: {
+                  if: {
+                    $gt: [
+                      {
+                        $size: "$reviews"
+                      },
+                      0
+                    ]
+                  },
+                  then: {
+                    $avg: "$reviews.rating"
+                  },
+                  else: 0
+                }
+              }
+            }
+          },
+          {
+            $project: {
+              author: 1,
+              totalReviews: 1,
+              title: 1,
+              coverImage: 1,
+              price: 1,
+              averageRating: 1,
+              genre: 1,
+              isAvailable: 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      $addFields:{
+        book:{
+          $first:"$book"
         }
-    ])
-    if (!allBoughtBooks.length) {
-        throw new ApiError(500,"Somthig went wrong while getting Bought Books")
+      }
+    },
+    {
+      $project:{
+        book:1,
+        _id:-1
+      }
     }
-    return res.status(200)
-    .json(
-        new ApiResponse(200,allBoughtBooks,"Successfuly Fetched Bought Books")
-    )
+  ]).skip(skip).limit(parseInt(limit))
+
+    const totalBooks = (await BookSubscription.find({owner:req.user?._id})).length;
+
+    return res
+    .status(200)
+    .json( new ApiResponse(
+        200,
+        {
+            purchasedBooks,
+            totalPages: Math.ceil(totalBooks / limit) || 1,
+            currentPage: parseInt(page),
+        },
+        "Books fetched Successfully"))
+})
+
+const getAllMyBooks = asyncHandler( async(req,res)=>{
+    const { page = 1, limit = 10, query, sortBy, sortType, genre} = req.query
+
+    // filter object
+    const filter = {};
+    if (query) {
+        filter.$or = [
+            { title: { $regex: query, $options: 'i' } },
+            { genre: { $regex: query, $options: 'i' } }
+        ];
+    }
+    if (genre) {
+        filter.genre = { $regex: genre, $options: 'i' };
+    }
+    // sort object
+    const sort = {};
+    if (sortBy) {
+        sort[sortBy] = sortType === 'asc' ? 1 : -1;
+    }
+    //pagination
+    const skip = (page-1)*limit;
+
+    try {
+        const books = await Book.aggregate([ 
+          {
+            $match:{
+                author:new mongoose.Types.ObjectId(req.user?._id)
+            }
+          }, 
+          {
+            $match: filter,
+          },
+          {
+            $skip: skip
+          },
+          {
+            $limit: parseInt(limit)
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "author",
+              foreignField: "_id",
+              as: "author",
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    username: 1,
+                    fullname: 1,
+                    avatar: 1
+                  }
+                }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              totalReviews: {
+                $size: "$reviews"
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: "reviews",
+              localField: "reviews",
+              foreignField: "_id",
+              as: "reviews",
+              pipeline: [
+                {
+                  $project: {
+                    rating: 1
+                  }
+                }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              author: {
+                $first: "$author"
+              }
+            }
+          },
+          {
+            $addFields: {
+              averageRating: {
+                $cond: {
+                  if: {
+                    $gt: [
+                      {
+                        $size: "$reviews"
+                      },
+                      0
+                    ]
+                  },
+                  then: {
+                    $avg: "$reviews.rating"
+                  },
+                  else: 0
+                }
+              }
+            }
+          },
+          {
+            $project: {
+              author: 1,
+              totalReviews: 1,
+              title: 1,
+              coverImage: 1,
+              price: 1,
+              averageRating: 1,
+              genre: 1,
+              isAvailable: 1
+            }
+          },
+          {
+            $sort: sort 
+          }
+        ]);
+        const totalBooks = (await Book.find({author:req.user?._id})).length;
+
+        return res
+        .status(200)
+        .json( new ApiResponse(
+            200,
+            {
+                books,
+                totalPages: Math.ceil(totalBooks / limit) || 1,
+                currentPage: parseInt(page),
+            },
+            "Books fetched Successfully"))
+
+    } catch (error) {
+        throw new ApiError(500,error.message)
+    }
 })
 
 export {
@@ -625,5 +957,6 @@ export {
     updateAccountDetails,
     getAllFavouriteBooks,
     getAllUsers,
-    getAllBoughtBooks
+    getAllBoughtBooks,
+    getAllMyBooks
 }

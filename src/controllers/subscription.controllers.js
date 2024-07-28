@@ -1,16 +1,16 @@
 import mongoose, {isValidObjectId} from "mongoose"
-import { Subscription } from "../models/subscription.model.js"
-import {ApiError} from "../utils/ApiError.js"
+import { Subscription } from "../models/subscription.models.js"
+import {ApiError} from "../utils/ApiErrors.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 
 
 const toggleSubscription = asyncHandler(async (req, res) => {
-    const {userId} = req.params
-    if (!isValidObjectId(userId)) {
-        throw new ApiError(401,"invalid reviewId recevied")
+    const {clickedUserId} = req.params
+    if (!isValidObjectId(clickedUserId)) {
+        throw new ApiError(401,"invalid clickedUserId recevied")
     }
-    const existingSubscription = await Subscription.findOne({follower:req.user?._id,followedTo:userId})
+    const existingSubscription = await Subscription.findOne({follower:req.user?._id,followedTo:clickedUserId})
     if (existingSubscription) {
         const deletedSubscription = await Subscription.findByIdAndDelete(existingSubscription._id)
         if (!deletedSubscription) {
@@ -26,7 +26,7 @@ const toggleSubscription = asyncHandler(async (req, res) => {
         const newSubscription = await Subscription.create(
             {
                 follower:req.user?._id,
-                followedTo:userId
+                followedTo:clickedUserId
             }
         )
         if (!newSubscription) {

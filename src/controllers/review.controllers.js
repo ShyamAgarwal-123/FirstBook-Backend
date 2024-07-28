@@ -11,7 +11,7 @@ const submitReview = asyncHandler(async (req,res)=>{
     const { bookId } = req.params;
 
     if(!bookId){
-        throw new ApiError(401,"Invalid Request")
+        throw new ApiError(405,"Invalid Request")
     }
     const book = await Book.findById(bookId)
     if(!book){
@@ -21,7 +21,7 @@ const submitReview = asyncHandler(async (req,res)=>{
         throw new ApiError(400,"Book is not Available")
     }
     if(comment?.trim() ==="" || rating?.trim() ===""){
-        throw new ApiError(401,"All Fields are Required")
+        throw new ApiError(402,"All Fields are Required")
     }
 
     const review = await Review.create(

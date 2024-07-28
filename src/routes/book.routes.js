@@ -6,7 +6,7 @@ import {
     deleteBook,
     saveFavouriteBook,
     removeFavouriteBook,
-    bookList
+    bookList,
  } from "../controllers/book.controlers.js";
  
 import {upload} from "../middlewares/multer.middlewares.js"
@@ -20,5 +20,10 @@ bookRouter.use(verifyJWT); // Apply verifyJWT middleware to all routes in this f
 bookRouter.route("/publish").post(upload.single("coverImage"),publishABook)
 bookRouter.route("/").get(getAllBooks)
 bookRouter.route("/:bookId").get(getBookById)
+bookRouter.route("/saveFavBook/:bookId").put(saveFavouriteBook)
+bookRouter.route("/removeFavBook/:bookId").put(removeFavouriteBook)
+bookRouter.route("/toggelBookAvailibility/:bookId").put(deleteBook)
+
+
 
 export default bookRouter;

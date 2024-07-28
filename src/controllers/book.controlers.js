@@ -15,7 +15,7 @@ const publishABook = asyncHandler( async (req,res)=>{
     if (
         [title,content,genre,price].some((field)=> field?.trim() === "")
     ) {
-        throw new ApiError(400,"All Field is Required")
+        throw new ApiError(400,"All Fields are Required")
     }
     const coverImageLocalPath = req.file?.path
     if (!coverImageLocalPath) {
@@ -23,7 +23,7 @@ const publishABook = asyncHandler( async (req,res)=>{
     }
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
     if (!coverImage) {
-        throw new ApiError(400,"Cover Image is Required")
+        throw new ApiError(500," Something Went Wrong while uploading coverImage to Cloudinary")
     }
 
     const bookCreated = await Book.create({
@@ -81,7 +81,7 @@ const getBookById = asyncHandler(async (req, res) => {
     const currentUser = new mongoose.Types.ObjectId(req.user?._id)
     const { bookId } = req.params
     if (!isValidObjectId(bookId)) {
-        throw new ApiError(401," invalid bookId recevied")
+        throw new ApiError(402," invalid bookId recevied")
     }
     const foundedBook = await Book.aggregate([
         {
@@ -89,6 +89,11 @@ const getBookById = asyncHandler(async (req, res) => {
                 _id: new mongoose.Types.ObjectId(bookId)
             }
         },
+        // {
+        //   $match:{
+        //     isAvailable : true
+        //   }
+        // },
         {
             $lookup:{
                 from:"users",
@@ -173,7 +178,7 @@ const getBookById = asyncHandler(async (req, res) => {
                                     then: true,
                                     else: false
                                 }
-                            }
+                            },
                         }
                     },
                     {
@@ -215,15 +220,20 @@ const getBookById = asyncHandler(async (req, res) => {
         },
     ])
     if(!foundedBook){
-        throw new ApiError(401,"book does not exist")
+        throw new ApiError(402,"book does not exist")
     }
-    const isBought = false;
+    let isBought = false;
+    let isFav = false;
     const bookSubscription = await BookSubscription.findOne({owner:currentUser._id,book:bookId})
+    const favBook = await User.findOne({_id:currentUser._id,favouriteBooks:bookId})
     if(bookSubscription){
         isBought = true;
     }
+    if(favBook){
+      isFav = true;
+  }
     return res.status(200).json(
-        new ApiResponse(200,{foundedBook,isBought},"Book successfully fetched")
+        new ApiResponse(200,{foundedBook,isBought,isFav},"Book successfully fetched")
     )
 })
 // controllers for getting all books based on search query
@@ -253,6 +263,11 @@ const getAllBooks = asyncHandler(async (req, res) => {
         const books = await Book.aggregate([
           {
             $match: filter,
+          },
+          {
+            $match:{
+              isAvailable : true
+            }
           },
           {
             $skip: skip
@@ -343,7 +358,7 @@ const getAllBooks = asyncHandler(async (req, res) => {
             $sort: sort 
           }
         ]);
-        const totalBooks = await Book.countDocuments();
+        const totalBooks = (await Book.find({isAvailable : true})).length;
 
         return res
         .status(200)
@@ -351,7 +366,7 @@ const getAllBooks = asyncHandler(async (req, res) => {
             200,
             {
                 books,
-                totalPages: Math.ceil(totalBooks / limit),
+                totalPages: Math.ceil(totalBooks / limit) || 1,
                 currentPage: parseInt(page),
             },
             "Books fetched Successfully"))
@@ -498,11 +513,11 @@ const saveFavouriteBook = asyncHandler(async(req,res)=>{
     return res
     .status(200)
     .json(new ApiResponse(200,{},"successfully saved to favourites"))
-
 })
 // controller for removing favourite book
 const removeFavouriteBook = asyncHandler( async (req,res)=>{
     const { bookId } = req.params
+    console.log(bookId)
     const userId = new mongoose.Types.ObjectId(`${req.user?._id}`)
     if(!isValidObjectId(bookId)){
         throw new ApiError(401,"invalid bookId recevied")

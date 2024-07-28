@@ -9,7 +9,7 @@ const app = express();
 //configure 
 app.use(cors({
     origin: process.env.CORS_ORIGIN,
-    Credential: true
+    credentials: true
 }))
 
 app.use(express.json({limit: "16kb"}))//use to handel json data
